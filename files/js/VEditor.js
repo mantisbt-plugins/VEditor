@@ -1,12 +1,15 @@
 /* 
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Other/javascript.js to edit this template
+#******************************************************************************
+# VEditor is plugin for MantisBT using TinyMCE extension 
+# Copyright Ryszard Pydo
+#
+# Licensed under MIT licence
+#******************************************************************************
+
  */
 
 
 var tinycfg = document.getElementById('configTinyMCE').dataset;
-//    skin: (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'oxide-dark' : 'oxide'),
-//    content_css: (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default'),
 
 let tiny_skin = ( tinycfg.dark == 1 ? 'oxide-dark' : 'oxide');
 let tiny_css = ( tinycfg.dark == 1 ? 'dark' : 'default');
@@ -20,7 +23,6 @@ tinymce.init({
     link_default_target: '_blank',
     paste_data_images: tinycfg.pasteimages  == "true",
     paste_as_text: tinycfg.pastetext  == "true",
-//    paste_enable_default_filters: false,
     branding: false,
     toolbar: tinycfg.toolbar,
     preformatted: false,

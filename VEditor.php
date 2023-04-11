@@ -1,4 +1,10 @@
 <?php
+#******************************************************************************
+# VEditor is plugin for MantisBT using TinyMCE extension 
+# Copyright Ryszard Pydo
+#
+# Licensed under MIT licence
+#******************************************************************************
 
 require_once( 'html2text.php' );
 require_api('mention_api.php');
@@ -110,7 +116,7 @@ class VEditorPlugin extends MantisFormattingPlugin {
         }
     }
 
-    function bugnote_edit($p_event, $p_bug_id, $p_bugnote_id) {
+    function bugnote_edit($p_event, $p_bug_id, $p_bugnote_id, $files = null) {
         if (plugin_config_get('conv_img_to_file', 0) === 0) {
             return;
         }
@@ -284,8 +290,8 @@ class VEditorPlugin extends MantisFormattingPlugin {
             'pages' => ['bugnote_edit_page.php', 'view.php', 'bug_update_page.php', 'bug_report_page.php', 'bug_change_status_page.php'],
             'access_level' => REPORTER,
             'dev_level' => DEVELOPER,
-            'dev_plugins' => 'table searchreplace lists code image paste',
-            'reporter_plugins' => 'table searchreplace lists paste',
+            'dev_plugins' => 'table searchreplace lists code image',
+            'reporter_plugins' => 'table searchreplace lists',
             'dev_toolbar' => 'undo redo | styles | bold italic | numlist bullist outdent indent | alignleft aligncenter alignright | paste pastetext | code',
             'reporter_toolbar' => 'undo redo | styles | bold italic | numlist bullist outdent indent | alignleft aligncenter alignright | paste pastetext ',
             'menubar' => 'edit format table tools help',
@@ -519,9 +525,9 @@ function veditor_bug_get_attachments($p_bug_id) {
 		                FROM {bug_file}
 		                WHERE bug_id=' . db_param();
 
-#in not in move to another project, disable TinyMCE attachemenst    
+#if bug is not moving to another project, disable TinyMCE attachments    
     if (strpos($_SERVER['PHP_SELF'], 'bug_actiongroup.php') === false) {
-        $t_query .= " AND title <> '".IMG_PREFIX."' ";
+        $t_query .= " AND title <> '" . IMG_PREFIX . "' ";
     }
     $t_query .= ' ORDER BY date_added';
     $t_db_result = db_query($t_query, array($p_bug_id));
