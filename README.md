@@ -29,7 +29,7 @@ If you want paste images from clipboard you should enable blob(base64) images in
 In your config_inc.php add line
 
 
-```config_inc.php
+```php
 $g_custom_headers = array( 'Content-Security-Policy: ' . "default-src *; img-src 'self' blob: data:; script-src 'self'; style-src  'self' 'unsafe-inline' *"  );
 ```
 
@@ -39,7 +39,7 @@ It is required for hide files generated from TinyMCE.
 Open core/bug_api.php file and find bug_get_attachments function.  
 Add marked lines at the beginning code (around 1764 line code)
 
-```bug_api.php
+```php
 function bug_get_attachments( $p_bug_id ) {
     #VEditor begin
     if (function_exists('veditor_bug_get_attachments')) {
