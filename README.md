@@ -19,7 +19,7 @@ This allows you to paste screensots and use html code, e.g. bold text, colors or
 ## Installation
 
 1. Download and unzip the plugin files to your computer
-2. Upload the plugin directory and the files into <yourMantisRoot>/plugins. Directory named VEditor should contains VEditor.php file
+2. Upload the plugin directory and the files into <yourMantisRoot>/plugins. Directory should be named VEditor (remove version number) and contains VEditor.php file
 3. In MantisBT go to page Manage > Manage Plugins. You will see a list of installed and currently not installed plugins
 4. Click the **Uninstall** button to uninstall standard MantisBT Formatting  plugin
 5. Click the Install button to install VEditor plugin.
