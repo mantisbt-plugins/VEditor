@@ -18,7 +18,7 @@ class VEditorPlugin extends MantisFormattingPlugin {
     function register() {
         $this->name = 'VEditor';
         $this->description = 'TinyMCE extension - wyswig editor for textarea (replace MantisCoreFormatting)';
-        $this->version = '1.0.0';
+        $this->version = '1.1.0';
         $this->requires = array('MantisCore' => '2.1.0',);
         $this->author = 'Ryszard Pydo';
         $this->contact = 'pysiek634 on github.com';
@@ -124,7 +124,7 @@ class VEditorPlugin extends MantisFormattingPlugin {
         $this->update_img_bugnote($p_bug_id, $p_bugnote_id, $t_text);
     }
 
-    private function parse_note_text($p_bug_id, $p_bugnote_text, $p_type = 'bug') {
+    private function parse_note_text($p_bug_id, $p_bugnote_text, $p_type = 'bug', $p_bugnote_id = 0) {
         $t_note = $p_bugnote_text;
         $t_note_updated = false;
         if (!empty($p_bugnote_text)) {
@@ -146,7 +146,7 @@ class VEditorPlugin extends MantisFormattingPlugin {
     }
 
     private function update_img_bugnote($p_bug_id, $p_bugnote_id, $p_bugnote_text) {
-        list ($t_note_updated, $t_note) = $this->parse_note_text($p_bug_id, $p_bugnote_text);
+        list ($t_note_updated, $t_note) = $this->parse_note_text($p_bug_id, $p_bugnote_text, 'bug', $p_bugnote_id);
         if ($t_note_updated) {
             $t_bugnote_text_id = bugnote_get_field($p_bugnote_id, 'bugnote_text_id');
             db_param_push();
@@ -488,7 +488,7 @@ class VEditorPlugin extends MantisFormattingPlugin {
             $s_buglinks = plugin_config_get('process_buglinks');
         }
 
-        if (null === $s_htmn_magic) {
+        if (null === $s_html_disable) {
             $s_html_disable = plugin_config_get('html_disable_str', '', false, NO_USER, ALL_PROJECTS);
         }
         if (ON == $s_text) {

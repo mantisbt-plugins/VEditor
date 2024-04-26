@@ -15,7 +15,7 @@ This allows you to paste screensots and use html code, e.g. bold text, colors or
 - Support for Light/dark mode
 - Multi-language support
 
-This plugin requires MantisBT 2.1.0. It was tested on 2.25.5, PHP 8.1.X 
+This plugin requires MantisBT 2.1.0. It was tested on 2.26.1, PHP 8.3.X 
 
 ## Installation
 
