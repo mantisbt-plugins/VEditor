@@ -16,6 +16,7 @@ let tiny_css = ( tinycfg.dark == 1 ? 'dark' : 'default');
 
 tinymce.init({
     selector: 'textarea',
+    license_key: 'gpl',
     min_height: parseInt(tinycfg.height),
     language: tinycfg.lang,
     menubar: tinycfg.menubar,
