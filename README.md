@@ -38,7 +38,7 @@ $g_custom_headers = array( 'Content-Security-Policy: ' . "default-src *; img-src
 If you want to save images as bug attachments (recommended) you should patch MantisBT code.
 It is required for hide files generated from TinyMCE.
 Open core/bug_api.php file and find bug_get_attachments function.  
-Add marked lines at the beginning code (around 1764 line code)
+Add marked lines at the beginning code (around 1900 line code)
 
 ```php
 function bug_get_attachments( $p_bug_id ) {
