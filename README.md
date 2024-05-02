@@ -42,12 +42,19 @@ Add marked lines at the beginning code (around 1764 line code)
 
 ```php
 function bug_get_attachments( $p_bug_id ) {
-    #VEditor begin
-    if (function_exists('veditor_bug_get_attachments')) {
-        return veditor_bug_get_attachments($p_bug_id);
-    }
-    #VEditor end
+	$p_bug_id = (int)$p_bug_id;
 
+	global $g_cache_bug_attachments;
+	if( isset( $g_cache_bug_attachments[$p_bug_id] ) ) {
+		return $g_cache_bug_attachments[$p_bug_id];
+	}
+
+#VEditor begin
+        if (function_exists('veditor_bug_get_attachments')) {
+           return veditor_bug_get_attachments($p_bug_id);
+        }
+#VEditor end
+    
 	db_param_push();
 ```    
 ## Configuration
