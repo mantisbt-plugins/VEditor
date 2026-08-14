@@ -51,7 +51,17 @@ class Html2Text {
 
 		$html = static::fixNewlines($html);
 		if (mb_detect_encoding($html, "UTF-8", true)) {
-			$html = mb_convert_encoding($html, "HTML-ENTITIES", "UTF-8");
+			$convmap = [
+				0x80,
+				0x7FF,
+				0,
+				0x10FFFF,
+				0x10000,
+				0x1FFFFF,
+				0,
+				0x10FFFF,
+			];
+			$html =  mb_encode_numericentity($html, $convmap, "utf8");
 		}
 
 		$doc = static::getDocument($html, $options['ignore_errors']);

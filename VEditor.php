@@ -1,317 +1,499 @@
 <?php
-#******************************************************************************
-# VEditor is plugin for MantisBT using TinyMCE extension 
-# Copyright Ryszard Pydo
-#
-# Licensed under MIT licence
-#******************************************************************************
 
-require_once( 'html2text.php' );
+/**
+ * VEditor - TinyMCE WYSIWYG Editor Plugin for MantisBT
+ *
+ * This plugin replaces the default MantisCoreFormatting with TinyMCE editor,
+ * providing rich text editing capabilities including image paste support,
+ * automatic base64-to-file conversion, and enhanced formatting options.
+ *
+ * @copyright  Ryszard Pydo
+ * @license    MIT License
+ * @package    VEditor
+ * @since      1.0.0
+ */
+require_once('html2text.php');
 require_api('mention_api.php');
-require_once( config_get('plugin_path') . 'MantisCoreFormatting' . DIRECTORY_SEPARATOR . 'core' . DIRECTORY_SEPARATOR . 'MantisMarkdown.php' );
+require_once(config_get('plugin_path') . 'MantisCoreFormatting' . DIRECTORY_SEPARATOR . 'core' . DIRECTORY_SEPARATOR . 'MantisMarkdown.php');
 require_once('htmLawed/htmLawed.php');
 
-define("IMG_PREFIX", 'Pasted by TinyMCE');
-
+/**
+ * VEditor Plugin - Main plugin class
+ *
+ * Extends MantisFormattingPlugin to provide TinyMCE integration with:
+ * - Rich text editing
+ * - Image paste and auto-conversion to attachments
+ * - Multi-language support
+ * - Role-based toolbar configuration
+ * - XSS protection via htmLawed
+ */
 class VEditorPlugin extends MantisFormattingPlugin {
-    
-    const int MIN_TEXT_AREA_SIZE = 1048576;
-    
-    function register() {
+
+    const IMG_PREFIX = 'Pasted by TinyMCE';
+    const MIN_TEXT_AREA_SIZE = 1048576; // 1 MB
+    const DEFAULT_EDITOR_HEIGHT = 300;
+    const IMAGE_SEARCH = '/\ssrc="data:[\w\/]+;base64,([\w\/\+\=]+)"/mi';
+        
+    private ?string $lastUrl = null;
+    private bool $editorOk = false;
+
+    /**
+     * Register plugin metadata
+     *
+     * @return void
+     */
+    public function register(): void {
         $this->name = 'VEditor';
-        $this->description = 'TinyMCE extension - wyswig editor for textarea (replace MantisCoreFormatting)';
-        $this->version = '1.1.2';
-        $this->requires = array('MantisCore' => '2.23.0',);
+        $this->description = 'TinyMCE extension - WYSIWYG editor for textarea (replaces MantisCoreFormatting)';
+        $this->version = '1.2.0';
+        $this->requires = ['MantisCore' => '2.23.0'];
         $this->author = 'Ryszard Pydo';
         $this->contact = 'pysiek634 on github.com';
         $this->url = 'https://github.com/pysiek634/VEditor.git';
     }
 
-    #[\Override]    
-    public function init() {
+    /**
+     * Initialize plugin and extend textarea size limit for images
+     *
+     * The default MantisBT limit (64 KB) is too small for base64-encoded images.
+     * This plugin extends it to 1 MB to support image paste functionality.
+     *
+     * @return bool True on success
+     */
+    public function init(): bool {
         global $g_max_textarea_length;
-/*
- * Extend max_text_area_size which is too low for images
- * default limit is 64 KB (2.27.2)
- * VEditor extends it to 1 MB
- */        
-        if (isset($g_max_textarea_length) and $g_max_textarea_length < self::MIN_TEXT_AREA_SIZE) {
+
+        if (isset($g_max_textarea_length) && $g_max_textarea_length < self::MIN_TEXT_AREA_SIZE) {
             $g_max_textarea_length = self::MIN_TEXT_AREA_SIZE;
         }
         return true;
     }
-    
+
     /**
-     * Event hook declaration.
-     * @return array
+     * Declare event hooks
+     *
+     * @return array Array of event hooks
      */
-    function hooks() {
-        $my_hooks = array(
-            'EVENT_LAYOUT_RESOURCES' => 'Load_Wysiwyg',
-            'EVENT_LAYOUT_BODY_END' => 'StartEditor',
-            'EVENT_BUGNOTE_ADD' => 'bugnote_edit',
-            'EVENT_BUGNOTE_EDIT' => 'bugnote_edit',
-            'EVENT_UPDATE_BUG' => 'update_bug',
-            'EVENT_REPORT_BUG' => 'report_bug',
-        );
-        return array_merge(parent::hooks(), $my_hooks);
+    #[\Override]
+    function hooks(): array {
+        $myHooks = [
+            'EVENT_LAYOUT_RESOURCES' => 'loadWysiwyg',
+            'EVENT_LAYOUT_BODY_END' => 'startEditor',
+            'EVENT_BUGNOTE_ADD' => 'handleBugnoteEdit',
+            'EVENT_BUGNOTE_EDIT' => 'handleBugnoteEdit',
+            'EVENT_UPDATE_BUG' => 'handleBugUpdate',
+            'EVENT_REPORT_BUG' => 'handleBugReport',
+        ];
+        return array_merge(parent::hooks(), $myHooks);
     }
 
-    public function install() {
+    /**
+     * Plugin installation validation
+     *
+     * @return bool True if installation can proceed
+     */
+    public function install(): bool {
         if (plugin_is_installed('MantisCoreFormatting')) {
             error_parameters('MantisCoreFormatting');
             trigger_error(ERROR_PLUGIN_ALREADY_INSTALLED, ERROR);
             return false;
         }
-
         return true;
     }
 
-    public function uninstall() {
+    /**
+     * Plugin uninstallation validation
+     *
+     * @return bool True if uninstallation can proceed
+     */
+    public function uninstall(): bool {
         if (!plugin_is_installed('MantisCoreFormatting')) {
             error_parameters('MantisCoreFormatting');
             trigger_error(ERROR_PLUGIN_NOT_REGISTERED, ERROR);
             return false;
         }
-
         return true;
     }
 
-    function report_bug($p_event, $p_bug, $p_bug_id) {
-        $this->check_bug_after_update($p_bug);
+    /**
+     * Handle bug report event - process base64 images
+     *
+     * @param string $event Event name
+     * @param object $bug Bug data object
+     * @param int $bugId Bug ID
+     * @return void
+     */
+    public function handleBugReport(string $event, object $bug, int $bugId): void {
+        $this->processBugTextFields($bug);
     }
 
-    function update_bug($p_event, $p_existing_bug, $p_bug) {
-        $this->check_bug_after_update($p_bug);
+    /**
+     * Handle bug update event - process base64 images
+     *
+     * @param string $event Event name
+     * @param object $existingBug Existing bug data
+     * @param object $bug New bug data
+     * @return void
+     */
+    public function handleBugUpdate(string $event, object $existingBug, object $bug): void {
+        $this->processBugTextFields($bug);
     }
 
-    private function check_bug_after_update($p_bug) {
+    /**
+     * Process bug text fields (description, steps, additional info)
+     * Convert base64 images to file attachments
+     *
+     * @param object $bug Bug object with id, description, steps_to_reproduce, additional_information
+     * @return void
+     */
+    private function processBugTextFields(object $bug): void {
         if (plugin_config_get('conv_img_to_file', 0) === 0) {
             return;
         }
-        list ($t_update1, $t_description) = $this->parse_note_text($p_bug->id, $p_bug->description);
-        list ($t_update2, $t_steps_to_reproduce) = $this->parse_note_text($p_bug->id, $p_bug->steps_to_reproduce);
-        list ($t_update3, $t_additional_information) = $this->parse_note_text($p_bug->id, $p_bug->additional_information);
 
-        if ($t_update1 or $t_update2 or $t_update3) {
+        [$descUpdated, $description] = $this->parseNoteText($bug->id, $bug->description);
+        [$stepsUpdated, $stepsToReproduce] = $this->parseNoteText($bug->id, $bug->steps_to_reproduce);
+        [$infoUpdated, $additionalInfo] = $this->parseNoteText($bug->id, $bug->additional_information);
+
+        if ($descUpdated || $stepsUpdated || $infoUpdated) {
             db_param_push();
-            $t_bug_text_id = bug_get_field($p_bug->id, 'bug_text_id');
-            $t_query = 'UPDATE {bug_text}
-							SET description=' . db_param() . ',
-								steps_to_reproduce=' . db_param() . ',
-								additional_information=' . db_param() . '
-							WHERE id=' . db_param();
-            db_query($t_query, array(
-                $t_description,
-                $t_steps_to_reproduce,
-                $t_additional_information,
-                $t_bug_text_id));
-
-            bug_text_clear_cache($p_bug->id);
+            $bugTextId = bug_get_field($bug->id, 'bug_text_id');
+            $query = 'UPDATE {bug_text}
+                SET description = ' . db_param() . ',
+                    steps_to_reproduce = ' . db_param() . ',
+                    additional_information = ' . db_param() . '
+                WHERE id = ' . db_param();
+            db_query($query, [$description, $stepsToReproduce, $additionalInfo, $bugTextId]);
+            bug_text_clear_cache($bug->id);
         }
-#test for custom fields
-        $this->update_custom_notes($p_bug->id);
+
+        $this->processCustomFields($bug->id);
     }
 
-    private function update_custom_notes($p_bug_id) {
-        $t_query = 'SELECT * FROM {custom_field_string} WHERE bug_id = ' . db_param() . ' and text is NOT NULL';
-        $rs = db_query($t_query, array($p_bug_id));
+    /**
+     * Process custom fields for base64 images
+     *
+     * @param int $bugId Bug ID
+     * @return void
+     */
+    private function processCustomFields(int $bugId): void {
+        $query = 'SELECT * FROM {custom_field_string} WHERE bug_id = ' . db_param() . ' AND text IS NOT NULL';
+        $result = db_query($query, [$bugId]);
 
-        while ($row = db_fetch_array($rs)) {
-            list ($t_update, $t_note) = $this->parse_note_text($p_bug_id, $row['text']);
-            if ($t_update) {
-                $t_query = 'UPDATE {custom_field_string}
-							SET text=' . db_param() .
-                        ' WHERE field_id=' . db_param() .
-                        ' AND bug_id=' . db_param();
-                db_query($t_query, array(
-                    $t_note,
-                    $row['field_id'],
-                    $p_bug_id));
+        while ($row = db_fetch_array($result)) {
+            [$updated, $note] = $this->parseNoteText($bugId, $row['text']);
+            if ($updated) {
+                $updateQuery = 'UPDATE {custom_field_string}
+                    SET text = ' . db_param() . '
+                    WHERE field_id = ' . db_param() . ' AND bug_id = ' . db_param();
+                db_query($updateQuery, [$note, $row['field_id'], $bugId]);
             }
-        }
-    }
-
-    function bugnote_edit($p_event, $p_bug_id, $p_bugnote_id, $files = null) {
-        if (plugin_config_get('conv_img_to_file', 0) === 0) {
-            return;
-        }
-        $t_text = bugnote_get_text($p_bugnote_id);
-        $this->update_img_bugnote($p_bug_id, $p_bugnote_id, $t_text);
-    }
-
-    private function parse_note_text($p_bug_id, $p_bugnote_text, $p_type = 'bug', $p_bugnote_id = 0) {
-        $t_note = $p_bugnote_text;
-        $t_note_updated = false;
-        if (!empty($p_bugnote_text)) {
-            $t_ids = [];
-            preg_match_all('/\ssrc="data:[\w\/]+;base64,([\w\/\+\=]+)"/mi', $p_bugnote_text, $t_ids, PREG_PATTERN_ORDER);
-
-            if (isset($t_ids[1])) {
-                for ($t_num = 0; $t_num < count($t_ids[1]); $t_num++) {
-                    $t_file_id = $this->save_as_bug_attachement($p_bug_id, $p_bugnote_id, $t_ids[1][$t_num]);
-                    if ($t_file_id) {
-                        $t_img = ' src="file_download.php?type=' . $p_type . '&file_id=' . $t_file_id . '"';
-                        $t_note = str_replace($t_ids[0][$t_num], $t_img, $t_note);
-                        $t_note_updated = true;
-                    }
-                }
-            }
-        }
-        return [$t_note_updated, $t_note];
-    }
-
-    private function update_img_bugnote($p_bug_id, $p_bugnote_id, $p_bugnote_text) {
-        list ($t_note_updated, $t_note) = $this->parse_note_text($p_bug_id, $p_bugnote_text, 'bug', $p_bugnote_id);
-        if ($t_note_updated) {
-            $t_bugnote_text_id = bugnote_get_field($p_bugnote_id, 'bugnote_text_id');
-            db_param_push();
-            $t_query = 'UPDATE {bugnote_text} SET note=' . db_param() . ' WHERE id=' . db_param();
-            db_query($t_query, array($t_note, $t_bugnote_text_id));
-        }
-    }
-
-    private function save_as_bug_attachement($p_bug_id, $p_bugnote_id, $p_base64_string) {
-        $t_file = $this->files_base64_to_temp($p_base64_string);
-
-        if (isset($t_file['tmp_name'])) {
-            $t_file_info = file_add(
-                    $p_bug_id,
-                    $t_file,
-                    'bug',
-                    IMG_PREFIX, /* title */
-                    '', /* desc */
-                    null, /* user_id */
-                    0, /* date_added */
-                    true, /* skip_bug_update */
-                    $p_bugnote_id);
-            return $t_file_info['id'];
-        } else {
-            return false;
-        }
-    }
-
-    private function files_base64_to_temp($p_base64_string) {
-        $t_file = [];
-
-        if (!empty($p_base64_string)) {
-            $t_raw_content = base64_decode($p_base64_string);
-
-            do {
-                $t_tmp_file = realpath(sys_get_temp_dir()) . '/' . uniqid('mantisbt-file');
-            } while (file_exists($t_tmp_file));
-
-            file_put_contents($t_tmp_file, $t_raw_content);
-            $t_file['tmp_name'] = $t_tmp_file;
-            $t_file['size'] = filesize($t_tmp_file);
-            $t_file['browser_upload'] = false;
-            $t_file['name'] = IMG_PREFIX;
-        }
-        return $t_file;
-    }
-
-    private function tinyMCE_config() {
-        $t_config = [];
-        $t_lang = lang_get_current();
-        $t_langs = plugin_config_get('language_mapping', []);
-        $t_config['lang'] = 'en';
-        if (isset($t_langs[$t_lang])) {
-            $t_config['lang'] = $t_langs[$t_lang];
-        }
-#plugins and toolbars
-        $t_config['menubar'] = plugin_config_get('menubar', '');
-        $t_dev_level = plugin_config_get('dev_level', DEVELOPER);
-        if (access_get_project_level() < $t_dev_level) {
-            $t_config['plugins'] = plugin_config_get('reporter_plugins', '');
-            $t_config['toolbar'] = plugin_config_get('reporter_toolbar', '');
-        } else {
-            $t_config['plugins'] = plugin_config_get('dev_plugins', '');
-            $t_config['toolbar'] = plugin_config_get('dev_toolbar', '');
-        }
-        $t_config['height'] = plugin_config_get('height', 300);
-        $t_config['pasteimages'] = plugin_config_get('pasteimages', 'true');
-        $t_config['pastetext'] = plugin_config_get('pastetext', 'true');
-
-        return $t_config;
-    }
-
-    function StartEditor($p_event) {
-        if (!$this->EditorIsAllowed()) {
-            return;
-        }
-        $t_config = $this->tinyMCE_config();
-        echo '<wyswig  id="configTinyMCE" ';
-        echo 'data-lang="' . $t_config['lang'] . '" ';
-        echo 'data-plugins="' . $t_config['plugins'] . '" ';
-        echo 'data-toolbar="' . $t_config['toolbar'] . '" ';
-        echo 'data-menubar="' . $t_config['menubar'] . '" ';
-        echo 'data-height="' . $t_config['height'] . '" ';
-        echo 'data-pasteimages="' . $t_config['pasteimages'] . '" ';
-        echo 'data-pastetext="' . $t_config['pastetext'] . '" ';
-        echo 'data-dark="' . config_get('plugin_MantisBTModernDarkTheme_enabled', 0) . '" ';
-
-        echo '</wyswig>>';
-        echo '<script src="' . plugin_file('js/VEditor.js') . '&KEY=' . md5(filemtime(plugin_file_path('js/VEditor.js', plugin_get_current()))) . '" referrerpolicy="origin"></script>';
-    }
-
-    private function EditorIsAllowed() {
-        if (auth_is_user_authenticated()) {
-            if (!isset($this->last_url) or $this->last_url != $_SERVER['REQUEST_URI']) {
-                $this->last_url = $_SERVER['REQUEST_URI'];
-                $this->editor_ok = false;
-                $t_pages = plugin_config_get('pages', []);
-                foreach ($t_pages as $t_page) {
-                    if (strpos($_SERVER['REQUEST_URI'], $t_page) !== false) {
-                        $this->editor_ok = true;
-                        break;
-                    }
-                }
-                if ($this->editor_ok) {
-                    $t_access_level = plugin_config_get('access_level', REPORTER);
-                    if (access_get_project_level() < $t_access_level) {
-                        $this->editor_ok = false;
-                    }
-                }
-            }
-        } else {
-            $this->editor_ok = false;
-        }
-        return $this->editor_ok;
-    }
-
-    function Load_Wysiwyg($p_event) {
-        if ($this->EditorIsAllowed()) {
-            echo '<script src="' . plugin_file('js/tinymce/tinymce.min.js') . '" referrerpolicy="origin"></script>';
-        }
-    }
-
-    private function nl2br($p_string) {
-        if (preg_match('/^<\w+>.*/', $p_string) != 1) {
-            return string_nl2br($p_string);
-        } else {
-            return $p_string;
         }
     }
 
     /**
-     * Default plugin configuration.
-     * @return array
+     * Handle bugnote add/edit events - process base64 images
+     *
+     * @param string $event Event name
+     * @param int $bugId Bug ID
+     * @param int $bugnoteId Bugnote ID
+     * @param mixed $files Files (optional)
+     * @return void
      */
-    function config() {
-        return ['process_text' => ON,
+    public function handleBugnoteEdit(string $event, int $bugId, int $bugnoteId, $files = null): void {
+        if (plugin_config_get('conv_img_to_file', 0) === 0) {
+            return;
+        }
+        $text = bugnote_get_text($bugnoteId);
+        $this->updateBugnoteImages($bugId, $bugnoteId, $text);
+    }
+
+    /**
+     * Parse note text and convert base64 images to file attachments
+     *
+     * @param int $bugId Bug ID
+     * @param string $noteText Note text to process
+     * @param int $bugnoteId Bugnote ID (0 for bug description)
+     * @return array [bool updated, string processedText]
+     */
+    private function parseNoteText(int $bugId, string $noteText, int $bugnoteId = 0): array {
+       
+        $note = $noteText;
+        $updated = false;
+
+        if (empty($noteText)) {
+            return [$updated, $note];
+        }
+
+        $matches = [];
+        preg_match_all(self::IMAGE_SEARCH, $noteText, $matches, PREG_PATTERN_ORDER);
+
+        if (isset($matches[1]) && !empty($matches[1])) {
+            $replacements = [];
+            $replacementTags = [];
+
+            foreach ($matches[1] as $base64Data) {
+                $fileId = $this->saveAsBugAttachment($bugId, $bugnoteId, $base64Data);
+                if ($fileId) {
+                    $replacements[] = self::IMAGE_SEARCH;
+                    $replacementTags[] = ' src="file_download.php?type=bug&file_id=' . $fileId . '"';
+                    $updated = true;
+                }
+            }
+
+            if (!empty($replacements)) {
+                $note = preg_replace($replacements, $replacementTags, $noteText, 1);
+            }
+        }
+
+        return [$updated, $note];
+    }
+
+    /**
+     * Update bugnote with converted image links
+     *
+     * @param int $bugId Bug ID
+     * @param int $bugnoteId Bugnote ID
+     * @param string $bugnoteText Bugnote text
+     * @return void
+     */
+    private function updateBugnoteImages(int $bugId, int $bugnoteId, string $bugnoteText): void {
+        [$updated, $note] = $this->parseNoteText($bugId, $bugnoteText, $bugnoteId);
+        if ($updated) {
+            $bugnoteTextId = bugnote_get_field($bugnoteId, 'bugnote_text_id');
+            db_param_push();
+            $query = 'UPDATE {bugnote_text} SET note = ' . db_param() . ' WHERE id = ' . db_param();
+            db_query($query, [$note, $bugnoteTextId]);
+        }
+    }
+
+    /**
+     * Save base64 image as bug attachment
+     *
+     * @param int $bugId Bug ID
+     * @param int $bugnoteId Bugnote ID
+     * @param string $base64String Base64 encoded image data
+     * @return int|false File ID on success, false on failure
+     */
+    private function saveAsBugAttachment(int $bugId, int $bugnoteId, string $base64String): int|false {
+        $file = $this->convertBase64ToTempFile($base64String);
+
+        if (isset($file['tmp_name'])) {
+            $fileInfo = file_add(
+                    $bugId,
+                    $file,
+                    'bug',
+                    self::IMG_PREFIX,
+                    '',
+                    null,
+                    0,
+                    true,
+                    $bugnoteId
+            );
+            return $fileInfo['id'];
+        }
+        return false;
+    }
+
+    /**
+     * Convert base64 string to temporary file
+     *
+     * @param string $base64String Base64 encoded data
+     * @return array File array with tmp_name, size, browser_upload, name
+     */
+    private function convertBase64ToTempFile(string $base64String): array {
+        $file = [];
+
+        if (empty($base64String)) {
+            return $file;
+        }
+
+        $rawContent = base64_decode($base64String);
+
+        // Use tempnam() for atomic temp file creation (avoids TOCTOU race condition)
+        $tempFile = tempnam(sys_get_temp_dir(), 'mantisbt-file');
+        file_put_contents($tempFile, $rawContent);
+
+        $file['tmp_name'] = $tempFile;
+        $file['size'] = filesize($tempFile);
+        $file['browser_upload'] = false;
+        $file['name'] = self::IMG_PREFIX;
+
+        return $file;
+    }
+
+    /**
+     * Get TinyMCE configuration based on user access level
+     *
+     * @return array TinyMCE configuration array
+     */
+    private function getTinyMCEConfig(): array {
+        $config = [];
+        $currentLang = lang_get_current();
+        $langMapping = plugin_config_get('language_mapping', []);
+        $config['lang'] = $langMapping[$currentLang] ?? 'en';
+
+        $config['menubar'] = plugin_config_get('menubar', '');
+        $devLevel = plugin_config_get('dev_level', DEVELOPER);
+
+        if (access_get_project_level() < $devLevel) {
+            $config['plugins'] = plugin_config_get('reporter_plugins', '');
+            $config['toolbar'] = plugin_config_get('reporter_toolbar', '');
+        } else {
+            $config['plugins'] = plugin_config_get('dev_plugins', '');
+            $config['toolbar'] = plugin_config_get('dev_toolbar', '');
+        }
+
+        $config['height'] = plugin_config_get('height', self::DEFAULT_EDITOR_HEIGHT);
+        $config['pasteimages'] = plugin_config_get('pasteimages', 'true');
+        $config['pastetext'] = plugin_config_get('pastetext', 'true');
+
+        return $config;
+    }
+
+    /**
+     * Start editor - inject configuration and JavaScript
+     *
+     * @param string $event Event name
+     * @return void
+     */
+    public function startEditor(string $event): void {
+        if (!$this->isEditorAllowed()) {
+            return;
+        }
+
+        $config = $this->getTinyMCEConfig();
+        $darkMode = config_get('plugin_MantisBTModernDarkTheme_enabled', 0);
+
+        echo '<wysiwyg id="configTinyMCE" ';
+        echo 'data-lang="' . $config['lang'] . '" ';
+        echo 'data-plugins="' . htmlspecialchars($config['plugins']) . '" ';
+        echo 'data-toolbar="' . htmlspecialchars($config['toolbar']) . '" ';
+        echo 'data-menubar="' . htmlspecialchars($config['menubar']) . '" ';
+        echo 'data-height="' . $config['height'] . '" ';
+        echo 'data-pasteimages="' . $config['pasteimages'] . '" ';
+        echo 'data-pastetext="' . $config['pastetext'] . '" ';
+        echo 'data-dark="' . $darkMode . '"';
+        echo '</wysiwyg>';
+
+        $jsPath = plugin_file('js/VEditor.js');
+        $jsFilePath = plugin_file_path('js/VEditor.js', plugin_get_current());
+        $cacheKey = md5(filemtime($jsFilePath));
+        echo '<script src="' . $jsPath . '&KEY=' . $cacheKey . '" referrerpolicy="origin"></script>';
+    }
+
+    /**
+     * Check if editor is allowed for current user and page
+     *
+     * @return bool True if editor should be loaded
+     */
+    private function isEditorAllowed(): bool {
+        if (!auth_is_user_authenticated()) {
+            return false;
+        }
+
+        $currentUrl = $this->getCurrentUrl();
+
+        if (!isset($this->lastUrl) || $this->lastUrl !== $currentUrl) {
+            $this->lastUrl = $currentUrl;
+            $this->editorOk = false;
+
+            $allowedPages = plugin_config_get('pages', []);
+            foreach ($allowedPages as $page) {
+                if (strpos($currentUrl, $page) !== false) {
+                    $this->editorOk = true;
+                    break;
+                }
+            }
+
+            if ($this->editorOk) {
+                $accessLevel = plugin_config_get('access_level', REPORTER);
+                if (access_get_project_level() < $accessLevel) {
+                    $this->editorOk = false;
+                }
+            }
+        }
+
+        return $this->editorOk;
+    }
+
+    /**
+     * Get current request URI safely
+     *
+     * @return string Current request URI or empty string
+     */
+    private function getCurrentUrl(): string {
+        return $_SERVER['REQUEST_URI'] ?? '';
+    }
+
+    /**
+     * Load TinyMCE library
+     *
+     * @param string $event Event name
+     * @return void
+     */
+    public function loadWysiwyg(string $event): void {
+        if ($this->isEditorAllowed()) {
+            echo '<script src="' . plugin_file('js/tinymce/tinymce.min.js') . '" referrerpolicy="origin"></script>';
+        }
+    }
+
+    /**
+     * Convert newlines to <br> tags for non-HTML content
+     *
+     * @param string $string Input string
+     * @return string Processed string
+     */
+    private function convertNewlinesToBr(string $string): string {
+        if (preg_match('/^<\w+>.*/', $string) !== 1) {
+            return string_nl2br($string);
+        }
+        return $string;
+    }
+
+    /**
+     * Normalize HTML line breaks for text processing
+     *
+     * @param string $text Input text
+     * @return string Normalized text
+     */
+    private function normalizeLineBreaks(string $text): string {
+        return str_replace([">\r\n", "> \r\n", "\n"], ['>', '>', '\+'], $text);
+    }
+
+    /**
+     * Default plugin configuration
+     *
+     * @return array Configuration array
+     */
+    public function config(): array {
+        return [
+            'process_text' => ON,
             'process_urls' => ON,
             'process_buglinks' => ON,
             'process_markdown' => OFF,
-            'language_mapping' => ['english' => 'en', 'french' => 'fr_FR', 'german' => 'de', 'polish' => 'pl', 'spanish' => 'es_419'],
-            'pages' => ['bugnote_edit_page.php', 'view.php', 'bug_update_page.php', 'bug_report_page.php', 'bug_change_status_page.php'],
+            'language_mapping' => [
+                'english' => 'en',
+                'french' => 'fr_FR',
+                'german' => 'de',
+                'polish' => 'pl',
+                'spanish' => 'es_419'
+            ],
+            'pages' => [
+                'bugnote_edit_page.php',
+                'view.php',
+                'bug_update_page.php',
+                'bug_report_page.php',
+                'bug_change_status_page.php'
+            ],
             'access_level' => REPORTER,
             'dev_level' => DEVELOPER,
             'dev_plugins' => 'table searchreplace lists code image',
             'reporter_plugins' => 'table searchreplace lists',
             'dev_toolbar' => 'undo redo | styles | bold italic | numlist bullist outdent indent | alignleft aligncenter alignright | paste pastetext | code',
-            'reporter_toolbar' => 'undo redo | styles | bold italic | numlist bullist outdent indent | alignleft aligncenter alignright | paste pastetext ',
+            'reporter_toolbar' => 'undo redo | styles | bold italic | numlist bullist outdent indent | alignleft aligncenter alignright | paste pastetext',
             'menubar' => 'edit format table tools help',
-            'height' => 300,
+            'height' => self::DEFAULT_EDITOR_HEIGHT,
             'pasteimages' => 'true',
             'pastetext' => 'true',
             'conv_img_to_file' => 1,
@@ -320,238 +502,243 @@ class VEditorPlugin extends MantisFormattingPlugin {
     }
 
     /**
-     * Process Text, make sure to block any possible xss attacks
+     * Process text and sanitize to block XSS attacks
      *
-     * @param string  $p_string    Raw text to process.
-     * @param boolean $p_multiline True for multiline text (default), false for single-line.
-     *                             Determines which html tags are used.
-     *
-     * @return string valid formatted text
+     * @param string $string Raw text to process
+     * @param bool $multiline True for multiline text (default), false for single-line
+     * @return string Sanitized formatted text
      */
-    private function processText($p_string, $p_multiline = true) {
-
-        $t_string = string_strip_hrefs($p_string);
-        if ($p_multiline) {
-            $config = array('safe' => 1, 'schemes' => '*:*; src:http, https, data');
-            $out_str = htmLawed($p_string, $config);
-            return $out_str;
+    private function processText(string $string, bool $multiline = true): string {
+        if ($multiline) {
+            $config = ['safe' => 1, 'schemes' => '*:*; src:http, https, data'];
+            return htmLawed($string, $config);
         }
-        $t_string = string_html_specialchars($t_string, ENT_NOQUOTES);
-        return string_restore_valid_html_tags($t_string, $p_multiline);
+
+        $processed = string_html_specialchars($string, ENT_NOQUOTES);
+        return string_restore_valid_html_tags($processed, $multiline);
     }
 
     /**
-     * Process Bug and Note links
-     * @param string  $p_string    Raw text to process.
+     * Process bug and note links in text
      *
-     * @return string Formatted text
+     * @param string $string Raw text to process
+     * @return string Formatted text with links
      */
-    private function processBugAndNoteLinks($p_string) {
-
-        $t_string = string_process_bug_link($p_string);
-        return string_process_bugnote_link($t_string);
+    private function processBugAndNoteLinks(string $string): string {
+        $processed = string_process_bug_link($string);
+        return string_process_bugnote_link($processed);
     }
 
     /**
-     * Plain text processing.
+     * Plain text processing
      *
-     * @param string  $p_event     Event name.
-     * @param string  $p_string    Raw text to process.
-     * @param boolean $p_multiline True for multiline text (default), false for single-line.
-     *                             Determines which html tags are used.
-     *
+     * @param string $event Event name
+     * @param string $string Raw text to process
+     * @param bool $multiline True for multiline text (default), false for single-line
      * @return string Formatted text
-     *
-     * @see $g_html_valid_tags
-     * @see $g_html_valid_tags_single_line
      */
-    function text($p_event, $p_string, $p_multiline = true) {
-        static $s_text;
+    #[\Override]
+    public function text($event, $string, $multiline = true): string {
+        static $processText = null;
 
-        if (null === $s_text) {
-            $s_text = plugin_config_get('process_text');
+        if ($processText === null) {
+            $processText = plugin_config_get('process_text');
         }
 
-        if (ON == $s_text) {
+        if ($processText === ON) {
+            $result = $this->processText($string, $multiline);
 
-            $t_string = $this->processText($p_string, $p_multiline);
-
-            if ($p_multiline) {
-                $t_string = string_preserve_spaces_at_bol($t_string);
+            if ($multiline) {
+                $result = string_preserve_spaces_at_bol($result);
             }
-            return $t_string;
-        } else {
-            return $p_string;
+            return $result;
         }
+
+        return $string;
     }
 
     /**
-     * Formatted text processing.
+     * Formatted text processing
      *
-     * Performs plain text, URLs, bug links, markdown processing
+     * Performs plain text, URLs, bug links, and markdown processing
      *
-     * @param string  $p_event     Event name.
-     * @param string  $p_string    Raw text to process.
-     * @param boolean $p_multiline True for multiline text (default), false for single-line.
-     *                             Determines which html tags are used.
-     *
-     * @return string Formatted text
+     * @param string $event Event name
+     * @param string $string Raw text to process
+     * @param bool $multiline True for multiline text (default), false for single-line
+     * @return string Fully formatted text
      */
-    function formatted($p_event, $p_string, $p_multiline = true) {
-        static $s_text, $s_urls, $s_buglinks, $s_markdown;
+    #[\Override]
+    public function formatted($event, $string, $multiline = true): string {
+        static $processText = null;
+        static $processUrls = null;
+        static $processBuglinks = null;
+        static $processMarkdown = null;
 
-        $t_string = $p_string;
+        $result = $string;
 
-        if (null === $s_text) {
-            $s_text = plugin_config_get('process_text');
+        if ($processText === null) {
+            $processText = plugin_config_get('process_text');
         }
 
-        if (null === $s_urls) {
-            $s_urls = plugin_config_get('process_urls');
-            $s_buglinks = plugin_config_get('process_buglinks');
+        if ($processUrls === null) {
+            $processUrls = plugin_config_get('process_urls');
+            $processBuglinks = plugin_config_get('process_buglinks');
         }
 
-        if (null === $s_markdown) {
-            $s_markdown = plugin_config_get('process_markdown');
+        if ($processMarkdown === null) {
+            $processMarkdown = plugin_config_get('process_markdown');
         }
 
-        if (ON == $s_text) {
-            if ($p_multiline && OFF == $s_markdown) {
-                $t_string = string_preserve_spaces_at_bol($t_string);
+        if ($processText === ON) {
+            if ($multiline && $processMarkdown === OFF) {
+                $result = string_preserve_spaces_at_bol($result);
             }
-            $t_string = $this->nl2br($t_string);
-            $t_string = $this->processText($t_string);
+            $result = $this->convertNewlinesToBr($result);
+            $result = $this->processText($result);
         }
 
-        # Process Markdown
-        if (ON == $s_markdown) {
-            if ($p_multiline) {
-                $t_string = MantisMarkdown::convert_text($t_string);
+        // Process Markdown
+        if ($processMarkdown === ON) {
+            if ($multiline) {
+                $result = MantisMarkdown::convert_text($result);
             } else {
-                $t_string = MantisMarkdown::convert_line($t_string);
+                $result = MantisMarkdown::convert_line($result);
             }
         }
 
-        if (ON == $s_urls && OFF == $s_markdown) {
-            $t_string = string_insert_hrefs($t_string);
+        if ($processUrls === ON && $processMarkdown === OFF) {
+            $result = string_insert_hrefs($result);
         }
 
-        if (ON == $s_buglinks) {
-            $t_string = $this->processBugAndNoteLinks($t_string);
+        if ($processBuglinks === ON) {
+            $result = $this->processBugAndNoteLinks($result);
         }
 
-        $t_string = mention_format_text($t_string, /* html */ true);
+        $result = mention_format_text($result, true);
 
-        return $t_string;
+        return $result;
     }
 
     /**
-     * RSS text processing.
-     * @param string $p_event  Event name.
-     * @param string $p_string Unformatted text.
+     * RSS text processing
+     *
+     * Converts HTML to plain text for RSS feeds
+     *
+     * @param string $event Event name
+     * @param string $string Unformatted text
      * @return string Formatted text
      */
-    function rss($p_event, $p_string) {
-        static $s_text, $s_urls, $s_buglinks;
+    #[\Override]
+    public function rss($event, $string): string {
+        static $processText = null;
+        static $processUrls = null;
+        static $processBuglinks = null;
 
-        $t_string = $p_string;
+        $result = $string;
 
-        if (null === $s_text) {
-            $s_text = plugin_config_get('process_text');
-            $s_urls = plugin_config_get('process_urls');
-            $s_buglinks = plugin_config_get('process_buglinks');
+        if ($processText === null) {
+            $processText = plugin_config_get('process_text');
+            $processUrls = plugin_config_get('process_urls');
+            $processBuglinks = plugin_config_get('process_buglinks');
         }
 
-        if (ON == $s_text) {
-            $t_string = str_replace(">\r\n", '>', $t_string);
-            $t_string = str_replace("> \r\n", '>', $t_string);
-            $t_string = str_replace("\n", '\+', $t_string);
-
-            $t_string = string_strip_hrefs($t_string);
-            $t_string = convert_html_to_text($t_string, true);
-            $t_string = str_replace('\+', "\n", $t_string);
+        if ($processText === ON) {
+            $result = $this->normalizeLineBreaks($result);
+            $result = string_strip_hrefs($result);
+            $result = convert_html_to_text($result, true);
+            $result = str_replace('\+', "\n", $result);
         }
 
-        if (ON == $s_urls) {
-            $t_string = string_insert_hrefs($t_string);
+        if ($processUrls === ON) {
+            $result = string_insert_hrefs($result);
         }
 
-        if (ON == $s_buglinks) {
-            $t_string = string_process_bug_link($t_string, true, false, true);
-            $t_string = string_process_bugnote_link($t_string, true, false, true);
+        if ($processBuglinks === ON) {
+            $result = string_process_bug_link($result, true, false, true);
+            $result = string_process_bugnote_link($result, true, false, true);
         }
 
-        $t_string = mention_format_text($t_string, /* html */ true);
+        $result = mention_format_text($result, true);
 
-        return $t_string;
+        return $result;
     }
 
     /**
-     * Email text processing.
-     * @param string $p_event  Event name.
-     * @param string $p_string Unformatted text.
+     * Email text processing
+     *
+     * Converts HTML to plain text for email notifications
+     *
+     * @param string $event Event name
+     * @param string $string Unformatted text
      * @return string Formatted text
      */
-    function email($p_event, $p_string) {
-        static $s_text, $s_buglinks;
-        static $s_html_disable;
+    #[\Override]
+    public function email($event, $string): string {
+        static $processText = null;
+        static $processBuglinks = null;
+        static $htmlDisableStr = null;
 
-        $t_string = $p_string;
+        $result = $string;
 
-        if (null === $s_text) {
-            $s_text = plugin_config_get('process_text');
-            $s_buglinks = plugin_config_get('process_buglinks');
+        if ($processText === null) {
+            $processText = plugin_config_get('process_text');
+            $processBuglinks = plugin_config_get('process_buglinks');
         }
 
-        if (null === $s_html_disable) {
-            $s_html_disable = plugin_config_get('html_disable_str', '', false, NO_USER, ALL_PROJECTS);
+        if ($htmlDisableStr === null) {
+            $htmlDisableStr = plugin_config_get('html_disable_str', '', false, NO_USER, ALL_PROJECTS);
         }
-        if (ON == $s_text) {
-            if (empty($s_html_disable) or strpos($t_string, $s_html_disable) === false) { //magis string to disable HTML formatting
-                $t_string = str_replace(">\r\n", '>', $t_string);
-                $t_string = str_replace("> \r\n", '>', $t_string);
-                $t_string = str_replace("\n", '\+', $t_string);
 
-                $t_string = string_strip_hrefs($t_string);
-                $t_string = convert_html_to_text($t_string, true);
-                $t_string = str_replace('\+', "\n", $t_string);
+        if ($processText === ON) {
+            if (empty($htmlDisableStr) || strpos($result, $htmlDisableStr) === false) {
+                $result = $this->normalizeLineBreaks($result);
+                $result = string_strip_hrefs($result);
+                $result = convert_html_to_text($result, true);
+                $result = str_replace('\+', "\n", $result);
             }
         }
 
-        if (ON == $s_buglinks) {
-            $t_string = string_process_bug_link($t_string, false);
-            $t_string = string_process_bugnote_link($t_string, false);
+        if ($processBuglinks === ON) {
+            $result = string_process_bug_link($result, false);
+            $result = string_process_bugnote_link($result, false);
         }
 
-        $t_string = mention_format_text($t_string, /* html */ false);
+        $result = mention_format_text($result, false);
 
-        return $t_string;
+        return $result;
     }
-
 }
 
-/*
- * This is a copy of function bug_get_attachments with disabling attachaments pasted by TinyMCE
+/**
+ * Get bug attachments excluding TinyMCE pasted images
+ *
+ * This is a modified version of bug_get_attachments() that excludes
+ * images pasted via TinyMCE (except during project move operations)
+ *
+ * @param int $bugId Bug ID
+ * @return array Array of attachment data
  */
-
-function veditor_bug_get_attachments($p_bug_id) {
+function veditor_bug_get_attachments(int $bugId): array {
     db_param_push();
-    $t_query = 'SELECT id, title, diskfile, filename, filesize, file_type, date_added, user_id, bugnote_id
-		                FROM {bug_file}
-		                WHERE bug_id=' . db_param();
+    $query = 'SELECT id, title, diskfile, filename, filesize, file_type, date_added, user_id, bugnote_id
+        FROM {bug_file}
+        WHERE bug_id = ' . db_param();
 
-#if bug is not moving to another project, disable TinyMCE attachments    
+    $params = [$bugId];
+
+    // Exclude TinyMCE pasted attachments unless moving to another project
     if (strpos($_SERVER['PHP_SELF'], 'bug_actiongroup.php') === false) {
-        $t_query .= " AND title <> '" . IMG_PREFIX . "' ";
+        $query .= ' AND title <> ' . db_param();
+        $params[] = VEditorPlugin::IMG_PREFIX;
     }
-    $t_query .= ' ORDER BY date_added';
-    $t_db_result = db_query($t_query, array($p_bug_id));
+    $query .= ' ORDER BY date_added';
 
-    $t_result = array();
+    $dbResult = db_query($query, $params);
 
-    while ($t_row = db_fetch_array($t_db_result)) {
-        $t_result[] = $t_row;
+    $result = [];
+    while ($row = db_fetch_array($dbResult)) {
+        $result[] = $row;
     }
 
-    return $t_result;
+    return $result;
 }
