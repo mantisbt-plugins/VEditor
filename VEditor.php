@@ -274,34 +274,25 @@ class VEditorPlugin extends MantisFormattingPlugin
      */
     private function parseNoteText(int $bugId, string $noteText, int $bugnoteId = 0): array
     {
-
-        $note = $noteText;
         $updated = false;
 
         if (empty($noteText)) {
-            return [$updated, $note];
+            return [$updated, $noteText];
         }
 
-        $matches = [];
-        preg_match_all(self::IMAGE_SEARCH, $noteText, $matches, PREG_PATTERN_ORDER);
-
-        if (isset($matches[1]) && !empty($matches[1])) {
-            $replacements = [];
-            $replacementTags = [];
-
-            foreach ($matches[1] as $base64Data) {
+        $note = preg_replace_callback(
+            self::IMAGE_SEARCH,
+            function (array $matches) use ($bugId, $bugnoteId, &$updated): string {
+                $base64Data = $matches[1];
                 $fileId = $this->saveAsBugAttachment($bugId, $bugnoteId, $base64Data);
                 if ($fileId) {
-                    $replacements[] = self::IMAGE_SEARCH;
-                    $replacementTags[] = ' src="file_download.php?type=bug&file_id=' . $fileId . '"';
                     $updated = true;
+                    return ' src="file_download.php?type=bug&file_id=' . $fileId . '"';
                 }
-            }
-
-            if (!empty($replacements)) {
-                $note = preg_replace($replacements, $replacementTags, $noteText, 1);
-            }
-        }
+                return $matches[0];
+            },
+            $noteText
+        );
 
         return [$updated, $note];
     }
@@ -368,16 +359,44 @@ class VEditorPlugin extends MantisFormattingPlugin
             return $file;
         }
 
-        $rawContent = base64_decode($base64String);
+        $rawContent = base64_decode($base64String, true);
+        if ($rawContent === false) {
+            return $file;
+        }
 
         // Use tempnam() for atomic temp file creation (avoids TOCTOU race condition)
         $tempFile = tempnam(sys_get_temp_dir(), 'mantisbt-file');
         file_put_contents($tempFile, $rawContent);
 
+        // Detect mime type to assign the correct extension
+        $mimeType = 'application/octet-stream';
+        if (function_exists('finfo_open')) {
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            $detected = finfo_file($finfo, $tempFile);
+            if ($detected !== false) {
+                $mimeType = $detected;
+            }
+            // finfo_close($finfo); only for php version <= 7.4
+        } elseif (function_exists('mime_content_type')) {
+            $detected = mime_content_type($tempFile);
+            if ($detected !== false) {
+                $mimeType = $detected;
+            }
+        }
+
+        $extensions = [
+            'image/png' => '.png',
+            'image/jpeg' => '.jpg',
+            'image/gif' => '.gif',
+            'image/webp' => '.webp',
+            'image/svg+xml' => '.svg',
+        ];
+        $ext = $extensions[$mimeType] ?? '';
+
         $file['tmp_name'] = $tempFile;
         $file['size'] = filesize($tempFile);
         $file['browser_upload'] = false;
-        $file['name'] = self::IMG_PREFIX;
+        $file['name'] = self::IMG_PREFIX . $ext;
 
         return $file;
     }
@@ -544,7 +563,7 @@ class VEditorPlugin extends MantisFormattingPlugin
             return htmLawed($string, $config);
         }
 
-        $processed = string_html_specialchars($string, ENT_NOQUOTES);
+        $processed = string_html_specialchars($string);
         return string_restore_valid_html_tags($processed, $multiline);
     }
 
@@ -594,9 +613,9 @@ class VEditorPlugin extends MantisFormattingPlugin
      *
      * Performs plain text, URLs, bug links, and markdown processing
      *
-     * @param string $event Event name
-     * @param string $string Raw text to process
-     * @param bool $multiline True for multiline text (default), false for single-line
+     * @param string $p_event Event name
+     * @param string $p_string Raw text to process
+     * @param bool $p_multiline True for multiline text (default), false for single-line
      * @return string Fully formatted text
      */
     #[\Override]
@@ -652,7 +671,6 @@ class VEditorPlugin extends MantisFormattingPlugin
      * @param string $string Unformatted text
      * @return string Formatted text
      */
-    #[\Override]
     public function rss($event, $string): string
     {
         static $processText = null;
@@ -697,7 +715,6 @@ class VEditorPlugin extends MantisFormattingPlugin
      * @param string $string Unformatted text
      * @return string Formatted text
      */
-    #[\Override]
     public function email($event, $string): string
     {
         static $processText = null;
