@@ -27,13 +27,14 @@ require_once('htmLawed/htmLawed.php');
  * - Role-based toolbar configuration
  * - XSS protection via htmLawed
  */
-class VEditorPlugin extends MantisFormattingPlugin {
+class VEditorPlugin extends MantisFormattingPlugin
+{
 
     const IMG_PREFIX = 'Pasted by TinyMCE';
     const MIN_TEXT_AREA_SIZE = 1048576; // 1 MB
     const DEFAULT_EDITOR_HEIGHT = 300;
     const IMAGE_SEARCH = '/\ssrc="data:[\w\/]+;base64,([\w\/\+\=]+)"/mi';
-        
+
     private ?string $lastUrl = null;
     private bool $editorOk = false;
 
@@ -42,11 +43,13 @@ class VEditorPlugin extends MantisFormattingPlugin {
      *
      * @return void
      */
-    public function register(): void {
-        $this->name = 'VEditor';
-        $this->description = 'TinyMCE extension - WYSIWYG editor for textarea (replaces MantisCoreFormatting)';
-        $this->version = '1.2.0';
-        $this->requires = ['MantisCore' => '2.23.0'];
+    public function register(): void
+    {
+        $this->name = lang_get('plugin_Veditor_title');
+        $this->description = lang_get('plugin_Veditor_description');
+        $this->page = 'config';
+        $this->version = '1.5.0';
+        $this->requires = ['MantisCore' => '2.27.0'];
         $this->author = 'Ryszard Pydo';
         $this->contact = 'pysiek634 on github.com';
         $this->url = 'https://github.com/pysiek634/VEditor.git';
@@ -60,9 +63,11 @@ class VEditorPlugin extends MantisFormattingPlugin {
      *
      * @return bool True on success
      */
-    public function init(): bool {
+    public function init(): bool
+    {
         global $g_max_textarea_length;
 
+        #force increase of max textarea length to support base64 images, if set to lower value in config
         if (isset($g_max_textarea_length) && $g_max_textarea_length < self::MIN_TEXT_AREA_SIZE) {
             $g_max_textarea_length = self::MIN_TEXT_AREA_SIZE;
         }
@@ -74,8 +79,8 @@ class VEditorPlugin extends MantisFormattingPlugin {
      *
      * @return array Array of event hooks
      */
-    #[\Override]
-    function hooks(): array {
+    function hooks()
+    {
         $myHooks = [
             'EVENT_LAYOUT_RESOURCES' => 'loadWysiwyg',
             'EVENT_LAYOUT_BODY_END' => 'startEditor',
@@ -88,11 +93,56 @@ class VEditorPlugin extends MantisFormattingPlugin {
     }
 
     /**
+     * Default plugin configuration
+     *
+     * @return array Configuration array
+     */
+    public function config()
+    {
+        return [
+            'process_text' => ON,
+            'process_urls' => ON,
+            'process_buglinks' => ON,
+            'process_markdown' => OFF,
+
+            #TinyMCE language codes mapping - maps MantisBT language codes to TinyMCE language files            
+            'language_mapping' => [
+                'english' => 'en',
+                'french' => 'fr-FR',
+                'german' => 'de',
+                'polish' => 'pl',
+                'spanish' => 'es'
+            ],
+            'pages' => [
+                'bugnote_edit_page.php',
+                'view.php',
+                'bug_update_page.php',
+                'bug_report_page.php',
+                'bug_change_status_page.php'
+            ],
+            'access_level' => REPORTER,
+            'dev_level' => DEVELOPER,
+            'dev_plugins' => 'table searchreplace lists code image',
+            'reporter_plugins' => 'table searchreplace lists',
+            'dev_toolbar' => 'undo redo | styles | bold italic | numlist bullist outdent indent | alignleft aligncenter alignright | paste pastetext | code',
+            'reporter_toolbar' => 'undo redo | styles | bold italic | numlist bullist outdent indent | alignleft aligncenter alignright | paste pastetext',
+            'menubar' => 'edit format table tools help',
+            'height' => self::DEFAULT_EDITOR_HEIGHT,
+            'pasteimages' => 'true',
+            'pastetext' => 'true',
+            'conv_img_to_file' => ON,
+            'html_disable_str' => ''
+        ];
+    }
+
+
+    /**
      * Plugin installation validation
      *
      * @return bool True if installation can proceed
      */
-    public function install(): bool {
+    public function install(): bool
+    {
         if (plugin_is_installed('MantisCoreFormatting')) {
             error_parameters('MantisCoreFormatting');
             trigger_error(ERROR_PLUGIN_ALREADY_INSTALLED, ERROR);
@@ -106,7 +156,8 @@ class VEditorPlugin extends MantisFormattingPlugin {
      *
      * @return bool True if uninstallation can proceed
      */
-    public function uninstall(): bool {
+    public function uninstall(): bool
+    {
         if (!plugin_is_installed('MantisCoreFormatting')) {
             error_parameters('MantisCoreFormatting');
             trigger_error(ERROR_PLUGIN_NOT_REGISTERED, ERROR);
@@ -123,7 +174,8 @@ class VEditorPlugin extends MantisFormattingPlugin {
      * @param int $bugId Bug ID
      * @return void
      */
-    public function handleBugReport(string $event, object $bug, int $bugId): void {
+    public function handleBugReport(string $event, object $bug, int $bugId): void
+    {
         $this->processBugTextFields($bug);
     }
 
@@ -135,7 +187,8 @@ class VEditorPlugin extends MantisFormattingPlugin {
      * @param object $bug New bug data
      * @return void
      */
-    public function handleBugUpdate(string $event, object $existingBug, object $bug): void {
+    public function handleBugUpdate(string $event, object $existingBug, object $bug): void
+    {
         $this->processBugTextFields($bug);
     }
 
@@ -146,7 +199,8 @@ class VEditorPlugin extends MantisFormattingPlugin {
      * @param object $bug Bug object with id, description, steps_to_reproduce, additional_information
      * @return void
      */
-    private function processBugTextFields(object $bug): void {
+    private function processBugTextFields(object $bug): void
+    {
         if (plugin_config_get('conv_img_to_file', 0) === 0) {
             return;
         }
@@ -176,7 +230,8 @@ class VEditorPlugin extends MantisFormattingPlugin {
      * @param int $bugId Bug ID
      * @return void
      */
-    private function processCustomFields(int $bugId): void {
+    private function processCustomFields(int $bugId): void
+    {
         $query = 'SELECT * FROM {custom_field_string} WHERE bug_id = ' . db_param() . ' AND text IS NOT NULL';
         $result = db_query($query, [$bugId]);
 
@@ -200,7 +255,8 @@ class VEditorPlugin extends MantisFormattingPlugin {
      * @param mixed $files Files (optional)
      * @return void
      */
-    public function handleBugnoteEdit(string $event, int $bugId, int $bugnoteId, $files = null): void {
+    public function handleBugnoteEdit(string $event, int $bugId, int $bugnoteId, $files = null): void
+    {
         if (plugin_config_get('conv_img_to_file', 0) === 0) {
             return;
         }
@@ -216,8 +272,9 @@ class VEditorPlugin extends MantisFormattingPlugin {
      * @param int $bugnoteId Bugnote ID (0 for bug description)
      * @return array [bool updated, string processedText]
      */
-    private function parseNoteText(int $bugId, string $noteText, int $bugnoteId = 0): array {
-       
+    private function parseNoteText(int $bugId, string $noteText, int $bugnoteId = 0): array
+    {
+
         $note = $noteText;
         $updated = false;
 
@@ -257,7 +314,8 @@ class VEditorPlugin extends MantisFormattingPlugin {
      * @param string $bugnoteText Bugnote text
      * @return void
      */
-    private function updateBugnoteImages(int $bugId, int $bugnoteId, string $bugnoteText): void {
+    private function updateBugnoteImages(int $bugId, int $bugnoteId, string $bugnoteText): void
+    {
         [$updated, $note] = $this->parseNoteText($bugId, $bugnoteText, $bugnoteId);
         if ($updated) {
             $bugnoteTextId = bugnote_get_field($bugnoteId, 'bugnote_text_id');
@@ -275,20 +333,21 @@ class VEditorPlugin extends MantisFormattingPlugin {
      * @param string $base64String Base64 encoded image data
      * @return int|false File ID on success, false on failure
      */
-    private function saveAsBugAttachment(int $bugId, int $bugnoteId, string $base64String): int|false {
+    private function saveAsBugAttachment(int $bugId, int $bugnoteId, string $base64String): int|false
+    {
         $file = $this->convertBase64ToTempFile($base64String);
 
         if (isset($file['tmp_name'])) {
             $fileInfo = file_add(
-                    $bugId,
-                    $file,
-                    'bug',
-                    self::IMG_PREFIX,
-                    '',
-                    null,
-                    0,
-                    true,
-                    $bugnoteId
+                $bugId,
+                $file,
+                'bug',
+                self::IMG_PREFIX,
+                '',
+                null,
+                0,
+                true,
+                $bugnoteId
             );
             return $fileInfo['id'];
         }
@@ -301,7 +360,8 @@ class VEditorPlugin extends MantisFormattingPlugin {
      * @param string $base64String Base64 encoded data
      * @return array File array with tmp_name, size, browser_upload, name
      */
-    private function convertBase64ToTempFile(string $base64String): array {
+    private function convertBase64ToTempFile(string $base64String): array
+    {
         $file = [];
 
         if (empty($base64String)) {
@@ -327,14 +387,15 @@ class VEditorPlugin extends MantisFormattingPlugin {
      *
      * @return array TinyMCE configuration array
      */
-    private function getTinyMCEConfig(): array {
+    private function getTinyMCEConfig(): array
+    {
         $config = [];
         $currentLang = lang_get_current();
         $langMapping = plugin_config_get('language_mapping', []);
         $config['lang'] = $langMapping[$currentLang] ?? 'en';
 
         $config['menubar'] = plugin_config_get('menubar', '');
-        $devLevel = plugin_config_get('dev_level', DEVELOPER);
+        $devLevel = plugin_config_get('dev_level');
 
         if (access_get_project_level() < $devLevel) {
             $config['plugins'] = plugin_config_get('reporter_plugins', '');
@@ -357,7 +418,8 @@ class VEditorPlugin extends MantisFormattingPlugin {
      * @param string $event Event name
      * @return void
      */
-    public function startEditor(string $event): void {
+    public function startEditor(string $event): void
+    {
         if (!$this->isEditorAllowed()) {
             return;
         }
@@ -387,7 +449,8 @@ class VEditorPlugin extends MantisFormattingPlugin {
      *
      * @return bool True if editor should be loaded
      */
-    private function isEditorAllowed(): bool {
+    private function isEditorAllowed(): bool
+    {
         if (!auth_is_user_authenticated()) {
             return false;
         }
@@ -422,7 +485,8 @@ class VEditorPlugin extends MantisFormattingPlugin {
      *
      * @return string Current request URI or empty string
      */
-    private function getCurrentUrl(): string {
+    private function getCurrentUrl(): string
+    {
         return $_SERVER['REQUEST_URI'] ?? '';
     }
 
@@ -432,9 +496,11 @@ class VEditorPlugin extends MantisFormattingPlugin {
      * @param string $event Event name
      * @return void
      */
-    public function loadWysiwyg(string $event): void {
+    public function loadWysiwyg(string $event): void
+    {
         if ($this->isEditorAllowed()) {
-            echo '<script src="' . plugin_file('js/tinymce/tinymce.min.js') . '" referrerpolicy="origin"></script>';
+            $expectedHash = md5(filemtime(plugin_file_path('js/tinymce/tinymce.min.js')));
+            echo '<script src="' . plugin_file('js/tinymce/tinymce.min.js') . '&KEY=' . $expectedHash . '" referrerpolicy="origin"></script>';
         }
     }
 
@@ -444,7 +510,8 @@ class VEditorPlugin extends MantisFormattingPlugin {
      * @param string $string Input string
      * @return string Processed string
      */
-    private function convertNewlinesToBr(string $string): string {
+    private function convertNewlinesToBr(string $string): string
+    {
         if (preg_match('/^<\w+>.*/', $string) !== 1) {
             return string_nl2br($string);
         }
@@ -457,49 +524,11 @@ class VEditorPlugin extends MantisFormattingPlugin {
      * @param string $text Input text
      * @return string Normalized text
      */
-    private function normalizeLineBreaks(string $text): string {
+    private function normalizeLineBreaks(string $text): string
+    {
         return str_replace([">\r\n", "> \r\n", "\n"], ['>', '>', '\+'], $text);
     }
 
-    /**
-     * Default plugin configuration
-     *
-     * @return array Configuration array
-     */
-    public function config(): array {
-        return [
-            'process_text' => ON,
-            'process_urls' => ON,
-            'process_buglinks' => ON,
-            'process_markdown' => OFF,
-            'language_mapping' => [
-                'english' => 'en',
-                'french' => 'fr_FR',
-                'german' => 'de',
-                'polish' => 'pl',
-                'spanish' => 'es_419'
-            ],
-            'pages' => [
-                'bugnote_edit_page.php',
-                'view.php',
-                'bug_update_page.php',
-                'bug_report_page.php',
-                'bug_change_status_page.php'
-            ],
-            'access_level' => REPORTER,
-            'dev_level' => DEVELOPER,
-            'dev_plugins' => 'table searchreplace lists code image',
-            'reporter_plugins' => 'table searchreplace lists',
-            'dev_toolbar' => 'undo redo | styles | bold italic | numlist bullist outdent indent | alignleft aligncenter alignright | paste pastetext | code',
-            'reporter_toolbar' => 'undo redo | styles | bold italic | numlist bullist outdent indent | alignleft aligncenter alignright | paste pastetext',
-            'menubar' => 'edit format table tools help',
-            'height' => self::DEFAULT_EDITOR_HEIGHT,
-            'pasteimages' => 'true',
-            'pastetext' => 'true',
-            'conv_img_to_file' => 1,
-            'html_disable_str' => ''
-        ];
-    }
 
     /**
      * Process text and sanitize to block XSS attacks
@@ -508,7 +537,8 @@ class VEditorPlugin extends MantisFormattingPlugin {
      * @param bool $multiline True for multiline text (default), false for single-line
      * @return string Sanitized formatted text
      */
-    private function processText(string $string, bool $multiline = true): string {
+    private function processText(string $string, bool $multiline = true): string
+    {
         if ($multiline) {
             $config = ['safe' => 1, 'schemes' => '*:*; src:http, https, data'];
             return htmLawed($string, $config);
@@ -524,7 +554,8 @@ class VEditorPlugin extends MantisFormattingPlugin {
      * @param string $string Raw text to process
      * @return string Formatted text with links
      */
-    private function processBugAndNoteLinks(string $string): string {
+    private function processBugAndNoteLinks(string $string): string
+    {
         $processed = string_process_bug_link($string);
         return string_process_bugnote_link($processed);
     }
@@ -538,7 +569,8 @@ class VEditorPlugin extends MantisFormattingPlugin {
      * @return string Formatted text
      */
     #[\Override]
-    public function text($event, $string, $multiline = true): string {
+    public function text($event, $string, $multiline = true): string
+    {
         static $processText = null;
 
         if ($processText === null) {
@@ -568,55 +600,47 @@ class VEditorPlugin extends MantisFormattingPlugin {
      * @return string Fully formatted text
      */
     #[\Override]
-    public function formatted($event, $string, $multiline = true): string {
-        static $processText = null;
-        static $processUrls = null;
-        static $processBuglinks = null;
-        static $processMarkdown = null;
+    function formatted($p_event, $p_string, $p_multiline = true)
+    {
+        static $s_text, $s_urls, $s_buglinks, $s_markdown;
 
-        $result = $string;
+        $t_string = $p_string;
 
-        if ($processText === null) {
-            $processText = plugin_config_get('process_text');
+        if (null === $s_urls) {
+            $s_urls = plugin_config_get('process_urls');
+            $s_buglinks = plugin_config_get('process_buglinks');
         }
 
-        if ($processUrls === null) {
-            $processUrls = plugin_config_get('process_urls');
-            $processBuglinks = plugin_config_get('process_buglinks');
+        if (null === $s_markdown) {
+            $s_markdown = plugin_config_get('process_markdown');
         }
 
-        if ($processMarkdown === null) {
-            $processMarkdown = plugin_config_get('process_markdown');
+        # Parse input and return finished HTML markup, no further processing.
+        if (ON == $s_markdown) {
+            return MantisMarkdown::getInstance($s_urls, $s_buglinks)->convert($t_string, $p_multiline);
         }
 
-        if ($processText === ON) {
-            if ($multiline && $processMarkdown === OFF) {
-                $result = string_preserve_spaces_at_bol($result);
+        if (null === $s_text) {
+            $s_text = plugin_config_get('process_text');
+        }
+
+        if (ON == $s_text) {
+            if ($p_multiline) {
+                $t_string = string_preserve_spaces_at_bol($t_string);
             }
-            $result = $this->convertNewlinesToBr($result);
-            $result = $this->processText($result);
+            $t_string = $this->convertNewlinesToBr($t_string); //replace string_nl2br with custom method to avoid converting newlines in HTML tags            
+            $t_string = $this->processText($t_string, true);
         }
 
-        // Process Markdown
-        if ($processMarkdown === ON) {
-            if ($multiline) {
-                $result = MantisMarkdown::convert_text($result);
-            } else {
-                $result = MantisMarkdown::convert_line($result);
-            }
+        if (ON == $s_urls) {
+            $t_string = string_insert_hrefs($t_string);
         }
 
-        if ($processUrls === ON && $processMarkdown === OFF) {
-            $result = string_insert_hrefs($result);
+        if (ON == $s_buglinks) {
+            $t_string = $this->processBugAndNoteLinks($t_string);
         }
 
-        if ($processBuglinks === ON) {
-            $result = $this->processBugAndNoteLinks($result);
-        }
-
-        $result = mention_format_text($result, true);
-
-        return $result;
+        return mention_format_text($t_string, /* html */ true);
     }
 
     /**
@@ -629,7 +653,8 @@ class VEditorPlugin extends MantisFormattingPlugin {
      * @return string Formatted text
      */
     #[\Override]
-    public function rss($event, $string): string {
+    public function rss($event, $string): string
+    {
         static $processText = null;
         static $processUrls = null;
         static $processBuglinks = null;
@@ -673,7 +698,8 @@ class VEditorPlugin extends MantisFormattingPlugin {
      * @return string Formatted text
      */
     #[\Override]
-    public function email($event, $string): string {
+    public function email($event, $string): string
+    {
         static $processText = null;
         static $processBuglinks = null;
         static $htmlDisableStr = null;
@@ -718,7 +744,8 @@ class VEditorPlugin extends MantisFormattingPlugin {
  * @param int $bugId Bug ID
  * @return array Array of attachment data
  */
-function veditor_bug_get_attachments(int $bugId): array {
+function veditor_bug_get_attachments(int $bugId): array
+{
     db_param_push();
     $query = 'SELECT id, title, diskfile, filename, filesize, file_type, date_added, user_id, bugnote_id
         FROM {bug_file}
