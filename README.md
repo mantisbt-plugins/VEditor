@@ -14,8 +14,9 @@ This allows you to paste screensots and use html code, e.g. bold text, colors or
 - Support for TinyMCE plugins (separate set for developer and reporter)
 - Support for Light/dark mode
 - Multi-language support
+- Configuration page
 
-This plugin requires MantisBT 2.23.0. It was tested on 2.26.1-2.28.0, PHP 8.3.X 
+This plugin requires MantisBT 2.27.0. It was tested on 2.26.1-2.28.4, PHP 8.3.X 
 
 ## Installation
 
@@ -59,7 +60,7 @@ function bug_get_attachments( $p_bug_id ) {
 ```    
 ## Configuration
 
-See config() method for plugin default configuration.
+Use /plugin.php?page=VEditor/config page for plugin configuration.
 
 
 ## Authors

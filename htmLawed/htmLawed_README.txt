@@ -1,6 +1,6 @@
 /*
-htmLawed_README.txt, 4 August 2023
-htmLawed 1.2.15
+htmLawed_README.txt, 9 August 2026
+htmLawed 1.2.16
 Copyright Santosh Patnaik
 Dual licensed with LGPL 3 and GPL 2+
 A PHP Labware internal utility - https://bioinformatics.org/phplabware/internal_utilities/htmLawed
@@ -838,7 +838,7 @@ A PHP Labware internal utility - https://bioinformatics.org/phplabware/internal_
 
   htmLawed by default permits these 122 HTML elements:
 
-    a, abbr, acronym, address, applet, area, article, aside, audio, b, bdi, bdo, big, blockquote, br, button, canvas, caption, center, cite, code, col, colgroup, command, data, datalist, dd, del, details, dfn, dialog, dir, div, dl, dt, em, embed, fieldset, figcaption, figure, font, footer, form, h1, h2, h3, h4, h5, h6, header, hgroup, hr, i, iframe, img, input, ins, isindex, kbd, keygen, label, legend, li, link, main, map, mark, menu, meta, meter, nav, noscript, object, ol, optgroup, option, output, p, param, picture, pre, progress, q, rb, rbc, rp, rt, rtc, ruby, s, samp, script, section, select, slot, small, source, span, strike, strong, style, sub, summary, sup, table, tbody, td, template, textarea, tfoot, th, thead, time, tr, track, tt, u, ul, var, video, wbr
+    a, abbr, acronym, address, applet, area, article, aside, audio, b, bdi, bdo, big, blockquote, br, button, canvas, caption, center, cite, code, col, colgroup, command, data, datalist, dd, del, details, dfn, dialog, dir, div, dl, dt, em, embed, fieldset, figcaption, figure, font, footer, form, h1, h2, h3, h4, h5, h6, header, hgroup, hr, i, iframe, img, input, ins, isindex, kbd, keygen, label, legend, li, link, main, map, mark, menu, meta, meter, nav, noscript, object, ol, optgroup, option, output, p, param, picture, pre, progress, q, rb, rbc, rp, rt, rtc, ruby, s, samp, script, search, section, select, slot, small, source, span, strike, strong, style, sub, summary, sup, table, tbody, td, template, textarea, tfoot, th, thead, time, tr, track, tt, u, ul, var, video, wbr
 
   htmLawed also supports use of custom HTML elements, but this support can be turned off when $config is appropriately set (i.e., in default configuration, such elements are permitted); see section:- #3.3.6.
 
@@ -1155,9 +1155,9 @@ A PHP Labware internal utility - https://bioinformatics.org/phplabware/internal_
 
   Optionally, for standard-compliance, htmLawed (function 'hl_tag()') lower-cases standard attribute values to give, e.g., 'input type="password"' instead of 'input type="Password"', if '$config["lc_std_val"]' is '1'. Attribute values matching those listed below for any of the elements listed further below (plus those for the 'type' attribute of 'button' or 'input') are lower-cased:
 
-    all, auto, baseline, bottom, button, captions, center, chapters, char, checkbox, circle, col, colgroup, color, cols, data, date, datetime, datetime-local, default, descriptions, email, file, get, groups, hidden, image, justify, left, ltr, metadata, middle, month, none, number, object, password, poly, post, preserve, radio, range, rect, ref, reset, right, row, rowgroup, rows, rtl, search, submit, subtitles, tel, text, time, top, url, week
+    all, auto, baseline, bottom, button, captions, center, chapters, char, checkbox, circle, col, colgroup, color, cols, data, date, datetime, datetime-local, default, descriptions, email, file, get, groups, hidden, hide, hint, image, justify, left, ltr, manual, metadata, middle, month, none, number, object, password, poly, post, preserve, radio, range, rect, ref, reset, right, row, rowgroup, rows, rtl, search, show, submit, subtitles, tel, text, time, toggle, top, url, week
 
-    a, area, bdo, button, col, fieldset, form, img, input, object, ol, optgroup, option, param, script, select, table, td, textarea, tfoot, th, thead, tr, track, xml:space
+    a, area, bdo, button, col, fieldset, form, img, input, object, ol, optgroup, option, param, popover, popovertargetaction, script, select, table, td, textarea, tfoot, th, thead, tr, track, xml:space
 
   The following `empty` (`minimized`) attributes are always assigned lower-cased values (same as the attribute names):
 
@@ -1407,6 +1407,8 @@ A PHP Labware internal utility - https://bioinformatics.org/phplabware/internal_
   (The release date for the downloadable package of files containing documentation, demo script, test-cases, etc., besides the 'htmLawed.php' file, may be updated without a change-log entry if the secondary files, but not htmLawed per se, are revised.)
 
   `Version number - Release date. Notes`
+
+  1.2.16 - 9 August 2026. Support for element 'search'; support for attributes 'aria-model', 'exportparts', 'part', 'popover', 'popovertarget', and 'popovertargetaction'; support for 'onanimation*', 'onbefore*', 'oncommand', 'oncontentvisibilityautostatechange', 'onselectionchange', and 'ontransition*' events; support for attribute 'name' for element 'details' 
 
   1.2.15 - 4 August 2023. Proper checking of attribute 'formaction'; transformation for deprecated attribute 'bgcolor' for 'tbody', 'tfoot', and 'thead'; support for URL schemes 'ws' and 'wss'
 
@@ -1695,7 +1697,7 @@ A PHP Labware internal utility - https://bioinformatics.org/phplabware/internal_
   model** - embed
   multiple - input, select
   muted - audio, video
-  name - a^, applet^, button, embed, fieldset, form^, iframe^, img^, input, keygen, map^, object, output, param, select, slot, textarea
+  name - a^, applet^, button, details, embed, fieldset, form^, iframe^, img^, input, keygen, map^, object, output, param, select, slot, textarea
   nohref - area
   noshade - hr^
   novalidate - form
@@ -1708,6 +1710,8 @@ A PHP Labware internal utility - https://bioinformatics.org/phplabware/internal_
   placeholder - input, textarea
   pluginspage** - embed
   pluginurl** - embed
+  popovertarget - button, input
+  popovertargetaction - button, input
   poster - video
   pqg - keygen
   preload - audio, video
@@ -1754,7 +1758,7 @@ A PHP Labware internal utility - https://bioinformatics.org/phplabware/internal_
 
   The following attributes, including event-specific ones and attributes of ARIA and microdata specifications, are considered global and allowed in all elements:
 
-  accesskey, autocapitalize, autofocus, aria-activedescendant, aria-atomic, aria-autocomplete, aria-braillelabel, aria-brailleroledescription, aria-busy, aria-checked, aria-colcount, aria-colindex, aria-colindextext, aria-colspan, aria-controls, aria-current, aria-describedby, aria-description, aria-details, aria-disabled, aria-dropeffect, aria-errormessage, aria-expanded, aria-flowto, aria-grabbed, aria-haspopup, aria-hidden, aria-invalid, aria-keyshortcuts, aria-label, aria-labelledby, aria-level, aria-live, aria-multiline, aria-multiselectable, aria-orientation, aria-owns, aria-placeholder, aria-posinset, aria-pressed, aria-readonly, aria-relevant, aria-required, aria-roledescription, aria-rowcount, aria-rowindex, aria-rowindextext, aria-rowspan, aria-selected, aria-setsize, aria-sort, aria-valuemax, aria-valuemin, aria-valuenow, aria-valuetext, class, contenteditable, contextmenu, dir, draggable, dropzone, enterkeyhint, hidden, id, inert, inputmode, is, itemid, itemprop, itemref, itemscope, itemtype, lang, nonce, onabort, onblur, oncanplay, oncanplaythrough, onchange, onclick, oncontextmenu, oncopy, oncuechange, oncut, ondblclick, ondrag, ondragend, ondragenter, ondragleave, ondragover, ondragstart, ondrop, ondurationchange, onemptied, onended, onerror, onfocus, onformchange, onforminput, oninput, oninvalid, onkeydown, onkeypress, onkeyup, onload, onloadeddata, onloadedmetadata, onloadend, onloadstart, onlostpointercapture, onmousedown, onmousemove, onmouseout, onmouseover, onmouseup, onmousewheel, onpaste, onpause, onplay, onplaying, onpointercancel, ongotpointercapture, onpointerdown, onpointerenter, onpointerleave, onpointermove, onpointerout, onpointerover, onpointerup, onprogress, onratechange, onreadystatechange, onreset, onsearch, onscroll, onseeked, onseeking, onselect, onshow, onstalled, onsubmit, onsuspend, ontimeupdate, ontoggle, ontouchcancel, ontouchend, ontouchmove, ontouchstart, onvolumechange, onwaiting, onwheel, onauxclick, oncancel, onclose, oncontextlost, oncontextrestored, onformdata, onmouseenter, onmouseleave, onresize, onsecuritypolicyviolation, onslotchange, role, slot, spellcheck, style, tabindex, title, translate, xmlns, xml:base, xml:lang, xml:space
+  accesskey, autocapitalize, autofocus, aria-activedescendant, aria-atomic, aria-autocomplete, aria-braillelabel, aria-brailleroledescription, aria-busy, aria-checked, aria-colcount, aria-colindex, aria-colindextext, aria-colspan, aria-controls, aria-current, aria-describedby, aria-description, aria-details, aria-disabled, aria-dropeffect, aria-errormessage, aria-expanded, aria-flowto, aria-grabbed, aria-haspopup, aria-hidden, aria-invalid, aria-keyshortcuts, aria-label, aria-labelledby, aria-level, aria-live, aria-modal, aria-multiline, aria-multiselectable, aria-orientation, aria-owns, aria-placeholder, aria-posinset, aria-pressed, aria-readonly, aria-relevant, aria-required, aria-roledescription, aria-rowcount, aria-rowindex, aria-rowindextext, aria-rowspan, aria-selected, aria-setsize, aria-sort, aria-valuemax, aria-valuemin, aria-valuenow, aria-valuetext, class, contenteditable, contextmenu, dir, draggable, dropzone, enterkeyhint, exportparts, hidden, id, inert, inputmode, is, itemid, itemprop, itemref, itemscope, itemtype, lang, nonce, onabort, onanimationcancel, onanimationend, onanimationiteration, onanimationstart, onauxclick, onbeforeinput, onbeforematch, onbeforetoggle, onblur, oncancel, oncanplay, oncanplaythrough, onchange, onclick, onclose, oncommand, oncontentvisibilityautostatechange, oncontextlost, oncontextmenu, oncontextrestored, oncopy, oncuechange, oncut, ondblclick, ondrag, ondragend, ondragenter, ondragleave, ondragover, ondragstart, ondrop, ondurationchange, onemptied, onended, onerror, onfocus, onformchange, onformdata, onforminput, ongotpointercapture, oninput, oninvalid, onkeydown, onkeypress, onkeyup, onload, onloadeddata, onloadedmetadata, onloadend, onloadstart, onlostpointercapture, onmousedown, onmouseenter, onmouseleave, onmousemove, onmouseout, onmouseover, onmouseup, onmousewheel, onpaste, onpause, onplay, onplaying, onpointercancel, onpointerdown, onpointerenter, onpointerleave, onpointermove, onpointerout, onpointerover, onpointerup, onprogress, onratechange, onreadystatechange, onreset, onresize, onscroll, onscrollend, onsearch, onsecuritypolicyviolation, onseeked, onseeking, onselect, onselectionchange, onshow, onslotchange, onstalled, onsubmit, onsuspend, ontimeupdate, ontoggle, ontouchcancel, ontouchend, ontouchmove, ontouchstart, ontransitioncancel, ontransitionend, ontransitionrun, ontransitionstart, onvolumechange, onwaiting, onwheel, part, popover, role, slot, spellcheck, style, tabindex, title, translate, xmlns, xml:base, xml:lang, xml:space
 
   Custom `data-*` attributes, where the first three characters of the value of `star` (*) after lower-casing do not equal 'xml' and the value of `star` does not have a colon (:), equal-to (=), newline, solidus (/), space, tab, or any A-Z character, are also considered global and allowed in all elements.
   

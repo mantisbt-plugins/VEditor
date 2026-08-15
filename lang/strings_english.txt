@@ -1,0 +1,65 @@
+<?php
+
+/**
+ * Veditor Plugin - English Language Strings
+ *
+ * @package Veditor
+ * @copyright Ryszard Pydo
+ * @license MIT License
+ */
+
+$s_plugin_Veditor_title = 'Veditor';
+$s_plugin_Veditor_description = 'TinyMCE extension - WYSIWYG editor for textarea (replaces MantisCoreFormatting)';
+
+$s_plugin_Veditor_config = 'Configuration';
+
+// Section Headers
+$s_plugin_Veditor_section_text_processing = 'Text Processing';
+$s_plugin_Veditor_section_editor_config = 'Editor Configuration';
+$s_plugin_Veditor_section_access_control = 'Access Control';
+$s_plugin_Veditor_section_role_config = 'Role-Based Configuration';
+
+// Text Processing Options
+$s_plugin_Veditor_process_text = 'Process Text';
+$s_plugin_Veditor_process_text_warning_notice = 'Warning: This option processes HTML content and may affect security. Ensure you trust your users.';
+$s_plugin_Veditor_process_urls = 'Process URLs';
+$s_plugin_Veditor_process_buglinks = 'Process Bug Links';
+$s_plugin_Veditor_process_buglinks_info = 'Converts %1$s for bug references and %2$s for bugnote references into links.';
+$s_plugin_Veditor_process_markdown = 'Process Markdown';
+$s_plugin_Veditor_process_markdown_info = 'Enable Markdown syntax parsing. When enabled, takes precedence over other text processing options.';
+
+// Editor Configuration
+$s_plugin_Veditor_menubar = 'Menu Bar';
+$s_plugin_Veditor_menubar_info = 'TinyMCE menu bar configuration (e.g., "edit format table tools help")';
+$s_plugin_Veditor_height = 'Editor Height';
+$s_plugin_Veditor_height_info = 'Height of the editor in pixels (default: 300)';
+$s_plugin_Veditor_pasteimages = 'Enable Image Paste';
+$s_plugin_Veditor_pasteimages_info = 'Allow users to paste images directly into the editor';
+$s_plugin_Veditor_pastetext = 'Enable Text Paste';
+$s_plugin_Veditor_pastetext_info = 'Allow plain text paste as plain text';
+$s_plugin_Veditor_conv_img_to_file = 'Convert Images to Files';
+$s_plugin_Veditor_conv_img_to_file_info = 'Convert pasted base64 images to file attachments (recommended for database size)';
+$s_plugin_Veditor_html_disable_str = 'HTML Disable String';
+$s_plugin_Veditor_html_disable_str_info = 'If this string is found in email content, HTML-to-text conversion will be skipped';
+
+// Access Control
+$s_plugin_Veditor_access_level = 'Minimum Access Level';
+$s_plugin_Veditor_access_level_info = 'Minimum access level required to use the Veditor';
+$s_plugin_Veditor_dev_level = 'Developer Access Level';
+$s_plugin_Veditor_dev_level_info = 'Access level threshold for using developer toolbar and plugins';
+$s_plugin_Veditor_pages = 'Allowed Pages';
+$s_plugin_Veditor_pages_info = 'List of pages where the editor should be loaded (one per line)';
+
+// Role-Based Configuration
+$s_plugin_Veditor_dev_plugins = 'Developer Plugins';
+$s_plugin_Veditor_dev_plugins_info = 'TinyMCE plugins for users with developer access level (e.g., "table searchreplace lists code image")';
+$s_plugin_Veditor_reporter_plugins = 'Reporter Plugins';
+$s_plugin_Veditor_reporter_plugins_info = 'TinyMCE plugins for users below developer access level (e.g., "table searchreplace lists")';
+$s_plugin_Veditor_dev_toolbar = 'Developer Toolbar';
+$s_plugin_Veditor_dev_toolbar_info = 'Toolbar configuration for users with developer access level';
+$s_plugin_Veditor_reporter_toolbar = 'Reporter Toolbar';
+$s_plugin_Veditor_reporter_toolbar_info = 'Toolbar configuration for users below developer access level';
+
+// Common
+$s_plugin_Veditor_enabled = 'Enabled';
+$s_plugin_Veditor_disabled = 'Disabled';
